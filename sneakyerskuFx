@@ -1,0 +1,194 @@
+package app;
+
+import javafx.application.Application;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.stage.Stage;
+import model.Sepatu;
+import db.transaksiDAO;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+
+public class SneakyrskuFX extends Application {
+    private ArrayList<Sepatu> keranjang = new ArrayList<>();
+    private int totalBelanja = 0;
+    private DecimalFormat df = new DecimalFormat("#,###");
+
+    @Override
+    public void start(Stage stage) {
+        // --- DASHBOARD HEADER (DIPERJELAS & TIDAK KEPOTONG) ---
+        VBox headerBox = new VBox(5);
+        headerBox.setAlignment(Pos.CENTER);
+        headerBox.setPadding(new Insets(30, 0, 30, 0)); // Padding atas bawah diperlebar
+        headerBox.setStyle("-fx-background-color: #1c4966;");
+        
+        Label lblTitle = new Label("DASHBOARD TOKO SEPATU SNEAKYRSKU");
+        lblTitle.setStyle("-fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: white;");
+        Label lblSubtitle = new Label("Langkah Pasti Perlu Gaya");
+        lblSubtitle.setStyle("-fx-font-style: italic; -fx-text-fill: #bdc3c7;");
+        headerBox.getChildren().addAll(lblTitle, lblSubtitle);
+
+        // --- BODY AREA ---
+        HBox body = new HBox(30);
+        body.setPadding(new Insets(25));
+        body.setAlignment(Pos.TOP_CENTER);
+
+        // --- SEKSI KIRI: INPUT & STRUK ---
+        VBox seksiKiri = new VBox(15);
+        seksiKiri.setPrefWidth(450);
+
+        ComboBox<String> cbProduk = new ComboBox<>();
+        cbProduk.getItems().addAll("Nike Air Jordan", "Adidas Superstar", "Vans Old Skool");
+        cbProduk.setPromptText("Pilih Produk:");
+        cbProduk.setMaxWidth(Double.MAX_VALUE);
+
+        TextField txtJumlah = new TextField();
+        txtJumlah.setPromptText("Jumlah Beli:");
+
+        Button btnTambah = new Button("+ Tambah ke Keranjang");
+        btnTambah.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold;");
+        btnTambah.setMaxWidth(Double.MAX_VALUE);
+
+        TextArea txtStrukArea = new TextArea();
+        txtStrukArea.setEditable(false);
+        txtStrukArea.setPrefHeight(250);
+        txtStrukArea.setStyle("-fx-font-family: 'Courier New'; -fx-font-size: 13px;");
+
+        seksiKiri.getChildren().addAll(new Label("Pilih Produk:"), cbProduk, new Label("Jumlah Beli:"), txtJumlah, btnTambah, txtStrukArea);
+
+        // --- SEKSI KANAN: RINGKASAN & UPDATE ---
+        VBox seksiKanan = new VBox(15);
+        seksiKanan.setPrefWidth(350);
+        seksiKanan.setPadding(new Insets(20));
+        seksiKanan.setStyle("-fx-background-color: white; -fx-background-radius: 10; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 0);");
+
+        Label lblRingkasan = new Label("RINGKASAN PEMBAYARAN");
+        lblRingkasan.setStyle("-fx-font-weight: bold;");
+
+        Label lblSubtotal = new Label("Subtotal : Rp 0");
+        Label lblDiskon = new Label("Diskon (10%): Rp 0");
+        Label lblTotal = new Label("TOTAL AKHIR : Rp 0");
+        lblTotal.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #2980b9;");
+
+        TextField txtBayar = new TextField();
+        txtBayar.setPromptText("Bayar Tunai:");
+
+        Button btnProses = new Button("PROSES BAYAR & CETAK");
+        btnProses.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-weight: bold;");
+        btnProses.setMaxWidth(Double.MAX_VALUE);
+
+        // --- FITUR UPDATE PESANAN ---
+        Separator sep = new Separator();
+        Label lblUpdateTitle = new Label("FITUR UPDATE PESANAN");
+        lblUpdateTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #e67e22;");
+        
+        TextField txtUpdateQty = new TextField();
+        txtUpdateQty.setPromptText("Masukkan Jumlah Baru");
+        
+        Button btnUpdate = new Button("🔄 UPDATE JUMLAH");
+        btnUpdate.setStyle("-fx-background-color: #e67e22; -fx-text-fill: white; -fx-font-weight: bold;");
+        btnUpdate.setMaxWidth(Double.MAX_VALUE);
+
+        seksiKanan.getChildren().addAll(lblRingkasan, new Separator(), lblSubtotal, lblDiskon, lblTotal, 
+                                        new Label("Bayar Tunai:"), txtBayar, btnProses, sep, 
+                                        lblUpdateTitle, txtUpdateQty, btnUpdate);
+
+        body.getChildren().addAll(seksiKiri, seksiKanan);
+
+        // --- SEKSI BAWAH: RIWAYAT ---
+        VBox seksiBawah = new VBox(10);
+        seksiBawah.setPadding(new Insets(0, 25, 25, 25));
+        
+        HBox barTombol = new HBox(10);
+        Button btnRefresh = new Button("🔄 Refresh Riwayat");
+        Button btnHapus = new Button("🗑️ Hapus Riwayat");
+        Button btnReset = new Button("📑 Reset Form");
+        
+        btnRefresh.setStyle("-fx-background-color: #3498db; -fx-text-fill: white;");
+        btnHapus.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white;");
+        btnReset.setStyle("-fx-background-color: #95a5a6; -fx-text-fill: white;");
+        barTombol.getChildren().addAll(btnRefresh, btnHapus, btnReset);
+
+        ListView<String> lvRiwayat = new ListView<>();
+        lvRiwayat.setPrefHeight(150);
+
+        seksiBawah.getChildren().addAll(new Label("📜 RIWAYAT TRANSAKSI TERBARU"), barTombol, lvRiwayat);
+
+        // --- LOGIKA PROGRAM ---
+
+        btnTambah.setOnAction(e -> {
+            try {
+                String nama = cbProduk.getValue();
+                int harga = nama.equals("Nike Air Jordan") ? 1500000 : (nama.equals("Adidas Superstar") ? 1100000 : 800000);
+                int jml = Integer.parseInt(txtJumlah.getText());
+                Sepatu s = new Sepatu(nama, harga, jml);
+                keranjang.add(s);
+                totalBelanja += s.getTotalHarga();
+                
+                txtStrukArea.appendText(nama + " x" + jml + " \t Rp " + df.format(s.getTotalHarga()) + "\n");
+                
+                int diskon = (totalBelanja > 2000000) ? (int)(totalBelanja * 0.1) : 0;
+                lblSubtotal.setText("Subtotal : Rp " + df.format(totalBelanja));
+                lblDiskon.setText("Diskon (10%): Rp " + df.format(diskon));
+                lblTotal.setText("TOTAL AKHIR : Rp " + df.format(totalBelanja - diskon));
+            } catch (Exception ex) { showAlert("Error", "Pilih produk dan isi jumlah!"); }
+        });
+
+        btnProses.setOnAction(e -> {
+            if (keranjang.isEmpty()) return;
+            try {
+                int diskon = (totalBelanja > 2000000) ? (int)(totalBelanja * 0.1) : 0;
+                int grandTotal = totalBelanja - diskon;
+                int cash = Integer.parseInt(txtBayar.getText());
+
+                if (cash < grandTotal) { showAlert("Gagal", "Uang Kurang!"); return; }
+
+                transaksiDAO.simpanTransaksi(keranjang, grandTotal, diskon, "Cash");
+                showAlert("Sukses", "Transaksi Berhasil! Kembalian: Rp " + df.format(cash - grandTotal));
+                btnReset.fire(); btnRefresh.fire();
+            } catch (Exception ex) { showAlert("Error", "Input pembayaran salah!"); }
+        });
+
+        btnUpdate.setOnAction(e -> {
+            String terpilih = lvRiwayat.getSelectionModel().getSelectedItem();
+            if (terpilih == null) { showAlert("Peringatan", "Pilih data di riwayat yang ingin di-update!"); return; }
+            
+            try {
+                int id = Integer.parseInt(terpilih.split("\\|")[0].replace("ID: ", "").trim());
+                int qtyBaru = Integer.parseInt(txtUpdateQty.getText());
+                transaksiDAO.updateTransaksi(id, qtyBaru); // Pastikan method ini ada di DAO
+                btnRefresh.fire();
+                showAlert("Sukses", "Data ID " + id + " berhasil diperbarui!");
+                txtUpdateQty.clear();
+            } catch (Exception ex) { showAlert("Error", "Masukkan jumlah baru yang valid!"); }
+        });
+
+        btnRefresh.setOnAction(e -> {
+            lvRiwayat.getItems().setAll(transaksiDAO.ambilRiwayat());
+        });
+
+        btnHapus.setOnAction(e -> {
+            transaksiDAO.hapusSemua(); btnRefresh.fire();
+        });
+
+        btnReset.setOnAction(e -> {
+            keranjang.clear(); txtStrukArea.clear(); txtJumlah.clear(); txtBayar.clear();
+            totalBelanja = 0; lblSubtotal.setText("Subtotal : Rp 0");
+            lblDiskon.setText("Diskon : Rp 0"); lblTotal.setText("TOTAL AKHIR : Rp 0");
+        });
+
+        btnRefresh.fire();
+        VBox root = new VBox(headerBox, body, seksiBawah);
+        root.setStyle("-fx-background-color: #f5f6fa;");
+        stage.setScene(new Scene(root, 1000, 900));
+        stage.setTitle("Sneakyrsku POS System - Dashboard");
+        stage.show();
+    }
+
+    private void showAlert(String t, String c) {
+        Alert a = new Alert(Alert.AlertType.INFORMATION); a.setTitle(t); a.setHeaderText(null); a.setContentText(c); a.show();
+    }
+}
