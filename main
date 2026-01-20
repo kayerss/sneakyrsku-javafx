@@ -1,0 +1,8 @@
+import app.LoginAPP;
+
+public class main {
+    public static void main(String[] args) {
+        // Pastikan 'App' menggunakan huruf kecil pada p terakhir
+        LoginAPP.main(args); 
+    }
+}
