@@ -1,0 +1,101 @@
+package db;
+
+import model.Sepatu;
+import java.sql.*;
+import java.util.ArrayList;
+
+public class transaksiDAO {
+
+    // --- METHOD 1: Simpan Data ---
+    public static void simpanTransaksi(ArrayList<Sepatu> keranjang, int total, int diskon, String metode) throws Exception {
+        String sqlT = "INSERT INTO transaksi (total_harga, diskon, total_bayar, metode_pembayaran) VALUES (?, ?, ?, ?) RETURNING id";
+        String sqlD = "INSERT INTO detail_transaksi (transaksi_id, merk, harga_satuan, jumlah, subtotal) VALUES (?, ?, ?, ?, ?)";
+
+        try (Connection conn = DatabaseConfig.hubungkan()) {
+            conn.setAutoCommit(false);
+            int idBaru = 0;
+            
+            try (PreparedStatement ps = conn.prepareStatement(sqlT)) {
+                ps.setInt(1, total + diskon);
+                ps.setInt(2, diskon);
+                ps.setInt(3, total);
+                ps.setString(4, metode);
+                ResultSet rs = ps.executeQuery();
+                if (rs.next()) idBaru = rs.getInt(1);
+            }
+
+            try (PreparedStatement psD = conn.prepareStatement(sqlD)) {
+                for (Sepatu s : keranjang) {
+                    psD.setInt(1, idBaru);
+                    psD.setString(2, s.getMerk());
+                    psD.setInt(3, s.getHarga());
+                    psD.setInt(4, s.getJumlah());
+                    psD.setInt(5, s.getTotalHarga());
+                    psD.addBatch();
+                }
+                psD.executeBatch();
+            }
+            conn.commit();
+        }
+    }
+
+    // --- METHOD 2: Ambil Data (Pastikan di luar method simpanTransaksi) ---
+    public static ArrayList<String> ambilRiwayat() {
+        ArrayList<String> daftar = new ArrayList<>();
+        String sql = "SELECT id, total_bayar, tanggal_transaksi FROM transaksi ORDER BY id DESC";
+        
+        try (Connection conn = DatabaseConfig.hubungkan();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            
+            while (rs.next()) {
+                String info = "ID: " + rs.getInt("id") + 
+                              " | Total: Rp" + rs.getInt("total_bayar") + 
+                              " | Tgl: " + rs.getTimestamp("tanggal_transaksi");
+                daftar.add(info);
+            }
+        } catch (SQLException e) {
+            System.out.println("Gagal ambil riwayat: " + e.getMessage());
+        }
+        return daftar;
+    }
+
+// Tambahkan ini di dalam file transaksiDAO.java
+public static void hapusSemua() {
+    // Query untuk menghapus isi tabel detail_transaksi terlebih dahulu (karena ada Foreign Key)
+    // baru kemudian menghapus isi tabel transaksi.
+    String sqlDetail = "DELETE FROM detail_transaksi";
+    String sqlTransaksi = "DELETE FROM transaksi";
+
+    try (Connection conn = DatabaseConfig.hubungkan();
+         Statement stmt = conn.createStatement()) {
+        
+        // Eksekusi hapus detail dulu
+        stmt.executeUpdate(sqlDetail);
+        // Eksekusi hapus transaksi utama
+        stmt.executeUpdate(sqlTransaksi);
+        
+        System.out.println("✅ Semua riwayat berhasil dihapus dari database.");
+    } catch (SQLException e) {
+        System.out.println("❌ Gagal menghapus riwayat: " + e.getMessage());
+    }
+}
+public static void updateTransaksi(int id, int qtyBaru) {
+    
+    String sql = "UPDATE transaksi SET total_bayar = (total_harga / (total_harga/total_bayar)) * ? WHERE id = ?";
+    
+    // Namun untuk mempermudah tugasmu, kita buat update total_bayar langsung:
+    String sqlSimple = "UPDATE transaksi SET total_bayar = ? WHERE id = ?";
+
+    try (Connection conn = DatabaseConfig.hubungkan();
+         PreparedStatement ps = conn.prepareStatement("UPDATE transaksi SET total_bayar = ? WHERE id = ?")) {
+        
+        // Misal kita set manual total baru (qty * 1.000.000 sebagai simulasi)
+        ps.setInt(1, qtyBaru * 500000); 
+        ps.setInt(2, id);
+        ps.executeUpdate();
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+}
+}
