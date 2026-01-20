@@ -1,0 +1,31 @@
+package db;
+
+import java.sql.*;
+
+public class AkunDAO {
+    public static boolean register(String user, String pass) {
+        String sql = "INSERT INTO akun (username, password) VALUES (?, ?)";
+        try (Connection conn = DatabaseConfig.hubungkan();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, user);
+            ps.setString(2, pass);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            return false;
+        }
+    }
+
+    public static int login(String user, String pass) {
+        String sql = "SELECT id FROM akun WHERE username = ? AND password = ?";
+        try (Connection conn = DatabaseConfig.hubungkan();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, user);
+            ps.setString(2, pass);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getInt("id");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return -1;
+    }
+}
